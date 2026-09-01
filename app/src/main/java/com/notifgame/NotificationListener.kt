@@ -6,51 +6,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 
 class NotificationListener :
     NotificationListenerService() {
-
-    override fun onNotificationPosted(
-        sbn: StatusBarNotification
-    ) {
-
-        val sourcePackage =
-            sbn.packageName
-
-        if (sourcePackage == packageName) {
-            return
-        }
-
-        val prefs =
-            getSharedPreferences(
-                "settings",
-                Context.MODE_PRIVATE
-            )
-
-        val selectedPackages =
-            prefs.getStringSet(
-                "source_packages",
-                emptySet()
-            ) ?: emptySet()
-
-        if (
-            !selectedPackages.contains(
-                sourcePackage
-            )
-        ) {
-            return
-        }
-
-        try {
-            cancelNotification(sbn.key)
-        } catch (_: Exception) {
-        }
-
-        showReplacementNotification(this)
-    }
 
     companion object {
 
@@ -60,9 +22,33 @@ class NotificationListener :
         private const val NOTIFICATION_ID =
             98765
 
+        // Bildirimler arası minimum süre.
+        private const val COOLDOWN_MS =
+            20_000L
+
+        @Volatile
+        private var lastNotificationTime =
+            0L
+
         fun showReplacementNotification(
             context: Context
         ) {
+
+            val now =
+                SystemClock.elapsedRealtime()
+
+            // Son bildirimden 20 saniye geçmediyse gönderme.
+            synchronized(this) {
+
+                if (
+                    now - lastNotificationTime <
+                    COOLDOWN_MS
+                ) {
+                    return
+                }
+
+                lastNotificationTime = now
+            }
 
             val prefs =
                 context.getSharedPreferences(
@@ -86,8 +72,7 @@ class NotificationListener :
                 prefs.getString(
                     "target_package",
                     null
-                )
-                    ?: return
+                ) ?: return
 
             val manager =
                 context.getSystemService(
@@ -100,8 +85,7 @@ class NotificationListener :
                 context.packageManager
                     .getLaunchIntentForPackage(
                         targetPackage
-                    )
-                    ?: return
+                    ) ?: return
 
             launchIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -123,7 +107,7 @@ class NotificationListener :
                     CHANNEL_ID
                 )
                     .setSmallIcon(
-                        android.R.drawable.ic_dialog_info
+                        R.drawable.ic_gamepad
                     )
                     .setContentTitle(title)
                     .setContentText(text)
@@ -183,5 +167,49 @@ class NotificationListener :
                 channel
             )
         }
+    }
+
+    override fun onNotificationPosted(
+        sbn: StatusBarNotification
+    ) {
+
+        val sourcePackage =
+            sbn.packageName
+
+        // Kendi bildirimimizi tekrar işleme.
+        if (sourcePackage == packageName) {
+            return
+        }
+
+        val prefs =
+            getSharedPreferences(
+                "settings",
+                Context.MODE_PRIVATE
+            )
+
+        val selectedPackages =
+            prefs.getStringSet(
+                "source_packages",
+                emptySet()
+            ) ?: emptySet()
+
+        // Seçilmemiş uygulamanın bildirimine dokunma.
+        if (
+            !selectedPackages.contains(
+                sourcePackage
+            )
+        ) {
+            return
+        }
+
+        // Orijinal bildirimi kaldır.
+        try {
+            cancelNotification(sbn.key)
+        } catch (_: Exception) {
+        }
+
+        // Yeni bildirim gönder.
+        // Cooldown kontrolü burada yapılacak.
+        showReplacementNotification(this)
     }
 }
