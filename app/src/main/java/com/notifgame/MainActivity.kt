@@ -943,7 +943,7 @@ class MainActivity : Activity() {
                 Gravity.CENTER_VERTICAL
 
             setTextColor(
-                Color.parseColor(BURGUNDARY)
+                Color.parseColor(BURGUNDY)
             )
 
             background =
@@ -978,11 +978,11 @@ class MainActivity : Activity() {
             setSingleLine(true)
 
             setTextColor(
-                Color.parseColor(BURGUNDARY)
+                Color.parseColor(BURGUNDY)
             )
 
             setHintTextColor(
-                Color.parseColor(BURGUNDARY)
+                Color.parseColor(BURGUNDY)
             )
 
             background =
@@ -1023,7 +1023,7 @@ class MainActivity : Activity() {
                 GradientDrawable().apply {
 
                     setColor(
-                        Color.parseColor(BURGUNDARY)
+                        Color.parseColor(BURGUNDY)
                     )
 
                     cornerRadius =
@@ -1045,7 +1045,7 @@ class MainActivity : Activity() {
             isAllCaps = false
 
             setTextColor(
-                Color.parseColor(BURGUNDARY)
+                Color.parseColor(BURGUNDY)
             )
 
             background =
@@ -1057,7 +1057,7 @@ class MainActivity : Activity() {
 
                     setStroke(
                         dp(2),
-                        Color.parseColor(BURGUNDARY)
+                        Color.parseColor(BURGUNDY)
                     )
 
                     cornerRadius =
@@ -1077,7 +1077,7 @@ class MainActivity : Activity() {
 
             setStroke(
                 dp(1),
-                Color.parseColor(BURGUNDARY)
+                Color.parseColor(BURGUNDY)
             )
 
             cornerRadius =
