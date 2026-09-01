@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NotifGame" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.kNotification" parent="android:style/Theme.Material.Light.NoActionBar">
+
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#6750A4</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:windowLightStatusBar">true</item>
+
+        <item name="android:windowActionModeOverlay">true</item>
+
+        <item name="android:colorAccent">#8E3B46</item>
+
+        <item name="android:statusBarColor">#E0777D</item>
+        <item name="android:navigationBarColor">#8E3B46</item>
+
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:windowBackground">#FDD692</item>
+
     </style>
 
 </resources>
