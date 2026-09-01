@@ -2,24 +2,29 @@ package com.notifgame
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.Button
+import android.view.ViewGroup
+import android.view.Window
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Button
+import android.graphics.drawable.GradientDrawable
 
 class MainActivity : Activity() {
 
@@ -27,440 +32,1218 @@ class MainActivity : Activity() {
         getSharedPreferences("settings", Context.MODE_PRIVATE)
     }
 
-    private lateinit var sourceContainer: LinearLayout
-    private lateinit var targetSpinner: Spinner
-    private lateinit var statusText: TextView
-
     private val sourceApps = mutableListOf<AppInfo>()
-    private val sourceChecks = mutableMapOf<String, CheckBox>()
+    private val selectedSourcePackages = mutableSetOf<String>()
+
+    private var targetPackage: String? = null
+
+    private lateinit var sourceSummary: TextView
+    private lateinit var targetSummary: TextView
+    private lateinit var statusSummary: TextView
+
+    private lateinit var notificationTitleInput: EditText
+    private lateinit var notificationTextInput: EditText
+
+    companion object {
+        private const val PINK = "#E0777D"
+        private const val CREAM = "#FDD692"
+        private const val BURGUNDY = "#8E3B46"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        buildUi()
+        selectedSourcePackages.clear()
+
+        prefs.getStringSet(
+            "source_packages",
+            emptySet()
+        )?.let {
+            selectedSourcePackages.addAll(it)
+        }
+
+        targetPackage =
+            prefs.getString(
+                "target_package",
+                null
+            )
+
         loadApps()
+        buildUi()
+        updateStatus()
     }
 
     override fun onResume() {
         super.onResume()
 
-        if (::statusText.isInitialized) {
+        if (::statusSummary.isInitialized) {
             updateStatus()
         }
     }
 
+    private fun loadApps() {
+
+        val pm = packageManager
+
+        sourceApps.clear()
+
+        sourceApps.addAll(
+            pm.getInstalledApplications(
+                PackageManager.GET_META_DATA
+            )
+                .filter { app ->
+                    app.packageName != packageName
+                }
+                .filter { app ->
+                    val label =
+                        app.loadLabel(pm)?.toString()
+
+                    !label.isNullOrBlank()
+                }
+                .map { app ->
+                    AppInfo(
+                        label =
+                            app.loadLabel(pm).toString(),
+                        packageName =
+                            app.packageName
+                    )
+                }
+                .distinctBy {
+                    it.packageName
+                }
+                .sortedBy {
+                    it.label.lowercase()
+                }
+        )
+    }
+
     private fun buildUi() {
 
-        val scroll = ScrollView(this)
+        val scrollView =
+            ScrollView(this).apply {
+                setBackgroundColor(Color.parseColor(CREAM))
+            }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(40, 40, 40, 40)
-        }
+        val root =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
 
-        scroll.addView(root)
+                setPadding(
+                    dp(22),
+                    dp(22),
+                    dp(22),
+                    dp(30)
+                )
+            }
 
-        val title = TextView(this).apply {
-            text = "NotifGame"
-            textSize = 30f
-            setTextColor(Color.BLACK)
-            setPadding(0, 0, 0, 12)
-        }
+        scrollView.addView(root)
+
+        // HEADER
+
+        val title =
+            TextView(this).apply {
+
+                text = "kNotification"
+
+                textSize = 30f
+
+                setTextColor(
+                    Color.parseColor(BURGUNDY)
+                )
+
+                typeface =
+                    Typeface.create(
+                        Typeface.DEFAULT,
+                        Typeface.BOLD
+                    )
+
+                setPadding(
+                    0,
+                    0,
+                    0,
+                    dp(5)
+                )
+            }
 
         root.addView(title)
 
-        val description = TextView(this).apply {
-            text = "Seçtiğin uygulamaların bildirimlerini yakalar, kaldırır ve yerine kendi bildiriminizi gösterir."
-            textSize = 16f
-            setPadding(0, 0, 0, 24)
-        }
+        val subtitle =
+            TextView(this).apply {
 
-        root.addView(description)
+                text =
+                    "Bildirimlerini istediğin gibi yönlendir."
 
-        val permissionButton = Button(this).apply {
-            text = "Bildirim Erişimini Aç"
+                textSize = 15f
 
-            setOnClickListener {
-                try {
-                    startActivity(
-                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                    )
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Bildirim ayarları açılamadı.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
+                setTextColor(
+                    Color.parseColor(BURGUNDY)
+                )
 
-        root.addView(permissionButton)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-
-            val notificationPermissionButton = Button(this).apply {
-                text = "Bildirim Gönderme İznini Ver"
-
-                setOnClickListener {
-                    requestPermissions(
-                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                        100
-                    )
-                }
+                setPadding(
+                    0,
+                    0,
+                    0,
+                    dp(22)
+                )
             }
 
-            root.addView(notificationPermissionButton)
-        }
+        root.addView(subtitle)
 
-        statusText = TextView(this).apply {
-            textSize = 15f
-            setPadding(0, 12, 0, 24)
-        }
+        // STATUS
 
-        root.addView(statusText)
+        val statusCard =
+            createCard()
 
-        val sourceTitle = TextView(this).apply {
-            text = "Kaynak uygulamalar"
-            textSize = 21f
-            setTextColor(Color.BLACK)
-            setPadding(0, 8, 0, 12)
-        }
+        val statusLabel =
+            createSectionLabel("SERVİS DURUMU")
 
-        root.addView(sourceTitle)
+        statusCard.addView(statusLabel)
 
-        sourceContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        statusSummary =
+            TextView(this).apply {
 
-        root.addView(sourceContainer)
+                textSize = 15f
 
-        val targetTitle = TextView(this).apply {
-            text = "Bildirime basınca açılacak uygulama"
-            textSize = 21f
-            setTextColor(Color.BLACK)
-            setPadding(0, 24, 0, 12)
-        }
-
-        root.addView(targetTitle)
-
-        targetSpinner = Spinner(this)
-
-        root.addView(
-            targetSpinner,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        val customTitle = TextView(this).apply {
-            text = "Gösterilecek bildirim"
-            textSize = 21f
-            setTextColor(Color.BLACK)
-            setPadding(0, 24, 0, 12)
-        }
-
-        root.addView(customTitle)
-
-        val notificationTitle = EditText(this).apply {
-            hint = "Bildirim başlığı"
-            setSingleLine(true)
-
-            setText(
-                prefs.getString(
-                    "notification_title",
-                    "🎮 OYUN ZAMANI"
+                setPadding(
+                    0,
+                    dp(6),
+                    0,
+                    0
                 )
-            )
-        }
 
-        root.addView(notificationTitle)
-
-        val notificationText = EditText(this).apply {
-            hint = "Bildirim metni"
-            setSingleLine(false)
-
-            setText(
-                prefs.getString(
-                    "notification_text",
-                    "Yeni görev hazır! Devam etmek için dokun."
+                setTextColor(
+                    Color.parseColor(BURGUNDY)
                 )
+            }
+
+        statusCard.addView(statusSummary)
+
+        val permissionButton =
+            createButton(
+                "Bildirim erişimini aç"
             )
-        }
 
-        root.addView(notificationText)
+        permissionButton.setOnClickListener {
 
-        val saveButton = Button(this).apply {
-            text = "AYARLARI KAYDET"
+            try {
 
-            setOnClickListener {
-
-                val selectedPackages =
-                    sourceChecks
-                        .filterValues { it.isChecked }
-                        .keys
-                        .toSet()
-
-                val targetPosition =
-                    targetSpinner.selectedItemPosition
-
-                if (selectedPackages.isEmpty()) {
-
-                    Toast.makeText(
-                        this@MainActivity,
-                        "En az bir kaynak uygulama seç.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return@setOnClickListener
-                }
-
-                if (
-                    targetPosition < 0 ||
-                    targetPosition >= sourceApps.size
-                ) {
-
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Hedef uygulama seç.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return@setOnClickListener
-                }
-
-                val targetPackage =
-                    sourceApps[targetPosition].packageName
-
-                prefs.edit()
-                    .putStringSet(
-                        "source_packages",
-                        selectedPackages
+                startActivity(
+                    Intent(
+                        Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
                     )
-                    .putString(
-                        "target_package",
-                        targetPackage
-                    )
-                    .putString(
-                        "notification_title",
-                        notificationTitle.text.toString()
-                    )
-                    .putString(
-                        "notification_text",
-                        notificationText.text.toString()
-                    )
-                    .apply()
+                )
+
+            } catch (_: Exception) {
 
                 Toast.makeText(
-                    this@MainActivity,
-                    "Ayarlar kaydedildi.",
+                    this,
+                    "Ayarlar açılamadı.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
         }
 
-        root.addView(saveButton)
+        statusCard.addView(
+            permissionButton,
+            buttonParams()
+        )
 
-        val testButton = Button(this).apply {
-            text = "TEST BİLDİRİMİ"
+        if (Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.TIRAMISU
+        ) {
 
-            setOnClickListener {
-                NotificationListener.showReplacementNotification(
-                    this@MainActivity
+            val postPermissionButton =
+                createSecondaryButton(
+                    "Bildirim iznini aç"
+                )
+
+            postPermissionButton.setOnClickListener {
+
+                requestPermissions(
+                    arrayOf(
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ),
+                    100
                 )
             }
+
+            statusCard.addView(
+                postPermissionButton,
+                buttonParams()
+            )
         }
 
-        root.addView(testButton)
+        root.addView(
+            statusCard,
+            cardParams()
+        )
 
-        val openTargetButton = Button(this).apply {
-            text = "SEÇİLİ UYGULAMAYI AÇ"
+        // SOURCE APPLICATIONS
 
-            setOnClickListener {
+        val sourceCard =
+            createCard()
 
-                val packageName =
-                    prefs.getString(
-                        "target_package",
-                        null
+        sourceCard.addView(
+            createSectionLabel(
+                "KAYNAK UYGULAMALAR"
+            )
+        )
+
+        val sourceDescription =
+            createDescription(
+                "Bildirimlerini değiştirmek istediğin uygulamaları seç."
+            )
+
+        sourceCard.addView(sourceDescription)
+
+        sourceSummary =
+            createSelectorSummary()
+
+        sourceCard.addView(
+            sourceSummary,
+            selectorParams()
+        )
+
+        sourceSummary.setOnClickListener {
+            showSourcePicker()
+        }
+
+        root.addView(
+            sourceCard,
+            cardParams()
+        )
+
+        // TARGET APPLICATION
+
+        val targetCard =
+            createCard()
+
+        targetCard.addView(
+            createSectionLabel(
+                "AÇILACAK UYGULAMA"
+            )
+        )
+
+        targetCard.addView(
+            createDescription(
+                "Değiştirilen bildirime dokunulduğunda açılacak uygulamayı belirle."
+            )
+        )
+
+        targetSummary =
+            createSelectorSummary()
+
+        targetCard.addView(
+            targetSummary,
+            selectorParams()
+        )
+
+        targetSummary.setOnClickListener {
+            showTargetPicker()
+        }
+
+        root.addView(
+            targetCard,
+            cardParams()
+        )
+
+        // NOTIFICATION
+
+        val notificationCard =
+            createCard()
+
+        notificationCard.addView(
+            createSectionLabel(
+                "YENİ BİLDİRİM"
+            )
+        )
+
+        notificationCard.addView(
+            createDescription(
+                "Kaynak uygulamanın yerine gösterilecek bildirimin metnini yaz."
+            )
+        )
+
+        notificationTitleInput =
+            createInput(
+                "Başlık",
+                prefs.getString(
+                    "notification_title",
+                    "Bildirim"
+                )
+            )
+
+        notificationCard.addView(
+            notificationTitleInput,
+            inputParams()
+        )
+
+        notificationTextInput =
+            createInput(
+                "Açıklama",
+                prefs.getString(
+                    "notification_text",
+                    "Yeni bildirim var."
+                )
+            )
+
+        notificationTextInput.minLines = 2
+
+        notificationCard.addView(
+            notificationTextInput,
+            inputParams()
+        )
+
+        root.addView(
+            notificationCard,
+            cardParams()
+        )
+
+        // SAVE
+
+        val saveButton =
+            createButton(
+                "Ayarları kaydet"
+            )
+
+        saveButton.setOnClickListener {
+            saveSettings()
+        }
+
+        root.addView(
+            saveButton,
+            largeButtonParams()
+        )
+
+        // TEST
+
+        val testButton =
+            createSecondaryButton(
+                "Test bildirimi gönder"
+            )
+
+        testButton.setOnClickListener {
+
+            NotificationListener
+                .showReplacementNotification(
+                    this
+                )
+        }
+
+        root.addView(
+            testButton,
+            largeButtonParams()
+        )
+
+        setContentView(scrollView)
+
+        updateSelectorTexts()
+    }
+
+    // --------------------------------------------------
+    // SOURCE PICKER
+    // --------------------------------------------------
+
+    private fun showSourcePicker() {
+
+        val container =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setPadding(
+                    dp(18),
+                    dp(10),
+                    dp(18),
+                    dp(10)
+                )
+            }
+
+        val search =
+            createInput(
+                "Uygulama ara",
+                ""
+            )
+
+        container.addView(
+            search,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(58)
+            )
+        )
+
+        val listScroll =
+            ScrollView(this)
+
+        val list =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+            }
+
+        listScroll.addView(list)
+
+        container.addView(
+            listScroll,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(440)
+            )
+        )
+
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(
+                    "Kaynak uygulamalar"
+                )
+                .setView(container)
+                .setPositiveButton(
+                    "Tamam"
+                ) { d, _ ->
+                    updateSelectorTexts()
+                    d.dismiss()
+                }
+                .create()
+
+        fun refreshList(query: String) {
+
+            list.removeAllViews()
+
+            val filtered =
+                sourceApps.filter {
+                    it.label.contains(
+                        query.trim(),
+                        ignoreCase = true
                     )
-
-                if (packageName == null) {
-
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Önce hedef uygulama seç.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return@setOnClickListener
                 }
 
-                openApp(packageName)
-            }
-        }
+            for (app in filtered) {
 
-        root.addView(openTargetButton)
+                val row =
+                    LinearLayout(this).apply {
 
-        setContentView(scroll)
+                        orientation =
+                            LinearLayout.HORIZONTAL
 
-        updateStatus()
-    }
+                        gravity =
+                            Gravity.CENTER_VERTICAL
 
-    private fun updateStatus() {
+                        setPadding(
+                            0,
+                            dp(5),
+                            0,
+                            dp(5)
+                        )
+                    }
 
-        val enabled =
-            isNotificationListenerEnabled()
+                val checkBox =
+                    CheckBox(this).apply {
 
-        statusText.text =
-            if (enabled) {
-                "🟢 Bildirim erişimi: AKTİF"
-            } else {
-                "🔴 Bildirim erişimi: KAPALI"
-            }
-    }
+                        text = app.label
 
-    private fun loadApps() {
+                        textSize = 16f
 
-    val pm = packageManager
+                        setTextColor(
+                            Color.parseColor(BURGUNDY)
+                        )
 
-    val apps = pm.getInstalledApplications(
-        PackageManager.GET_META_DATA
-    )
-        .filter { appInfo ->
-            appInfo.packageName != packageName &&
-                    (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
-        }
-        .mapNotNull { appInfo ->
+                        isChecked =
+                            selectedSourcePackages
+                                .contains(
+                                    app.packageName
+                                )
 
-            val label =
-                appInfo.loadLabel(pm)?.toString()
+                        buttonTintList =
+                            android.content.res.ColorStateList.valueOf(
+                                Color.parseColor(BURGUNDY)
+                            )
 
-            if (label.isNullOrBlank()) {
-                null
-            } else {
-                AppInfo(
-                    label = label,
-                    packageName = appInfo.packageName
-                )
-            }
-        }
-        .distinctBy {
-            it.packageName
-        }
-        .sortedBy {
-            it.label.lowercase()
-        }
+                        setOnCheckedChangeListener { _, checked ->
 
-    sourceApps.clear()
-    sourceApps.addAll(apps)
+                            if (checked) {
+                                selectedSourcePackages
+                                    .add(
+                                        app.packageName
+                                    )
+                            } else {
+                                selectedSourcePackages
+                                    .remove(
+                                        app.packageName
+                                    )
+                            }
+                        }
+                    }
 
-    sourceContainer.removeAllViews()
-    sourceChecks.clear()
-
-    val savedSources =
-        prefs.getStringSet(
-            "source_packages",
-            emptySet()
-        ) ?: emptySet()
-
-    for (app in sourceApps) {
-
-        val checkBox = CheckBox(this).apply {
-
-            text = app.label
-            textSize = 16f
-
-            isChecked =
-                savedSources.contains(
-                    app.packageName
+                row.addView(
+                    checkBox,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(54)
+                    )
                 )
 
-            setPadding(0, 12, 0, 12)
+                list.addView(row)
+            }
         }
 
-        sourceChecks[app.packageName] =
-            checkBox
-
-        sourceContainer.addView(checkBox)
-    }
-
-    val labels =
-        sourceApps.map {
-            it.label
-        }
-
-    targetSpinner.adapter =
-        ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            labels
+        search.addTextChangedListener(
+            SimpleTextWatcher {
+                refreshList(it)
+            }
         )
 
-    val savedTarget =
-        prefs.getString(
-            "target_package",
-            null
+        refreshList("")
+
+        dialog.show()
+
+        dialog.getButton(
+            AlertDialog.BUTTON_POSITIVE
+        )?.setTextColor(
+            Color.parseColor(BURGUNDY)
         )
+    }
 
-    if (savedTarget != null) {
+    // --------------------------------------------------
+    // TARGET PICKER
+    // --------------------------------------------------
 
-        val index =
-            sourceApps.indexOfFirst {
-                it.packageName == savedTarget
+    private fun showTargetPicker() {
+
+        val container =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setPadding(
+                    dp(18),
+                    dp(10),
+                    dp(18),
+                    dp(10)
+                )
             }
 
-        if (index >= 0) {
-            targetSpinner.setSelection(index)
-        }
-    }
-}
-    private fun openApp(
-        packageName: String
-    ) {
+        val search =
+            createInput(
+                "Uygulama ara",
+                ""
+            )
 
-        val launchIntent =
-            packageManager
-                .getLaunchIntentForPackage(
-                    packageName
+        container.addView(
+            search,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(58)
+            )
+        )
+
+        val listScroll =
+            ScrollView(this)
+
+        val list =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+            }
+
+        listScroll.addView(list)
+
+        container.addView(
+            listScroll,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(440)
+            )
+        )
+
+        var newTarget =
+            targetPackage
+
+        val dialog =
+            AlertDialog.Builder(this)
+                .setTitle(
+                    "Açılacak uygulama"
                 )
+                .setView(container)
+                .setPositiveButton(
+                    "Seç"
+                ) { d, _ ->
 
-        if (launchIntent == null) {
+                    targetPackage =
+                        newTarget
+
+                    updateSelectorTexts()
+
+                    d.dismiss()
+                }
+                .setNegativeButton(
+                    "Vazgeç",
+                    null
+                )
+                .create()
+
+        fun refreshList(query: String) {
+
+            list.removeAllViews()
+
+            val filtered =
+                sourceApps.filter {
+                    it.label.contains(
+                        query.trim(),
+                        ignoreCase = true
+                    )
+                }
+
+            for (app in filtered) {
+
+                val row =
+                    TextView(this).apply {
+
+                        text = app.label
+
+                        textSize = 16f
+
+                        setTextColor(
+                            Color.parseColor(BURGUNDY)
+                        )
+
+                        gravity =
+                            Gravity.CENTER_VERTICAL
+
+                        setPadding(
+                            dp(14),
+                            0,
+                            dp(14),
+                            0
+                        )
+
+                        background =
+                            createRowBackground()
+
+                        setOnClickListener {
+
+                            newTarget =
+                                app.packageName
+
+                            for (i in
+                                0 until list.childCount
+                            ) {
+
+                                val child =
+                                    list.getChildAt(i)
+
+                                child.alpha =
+                                    0.55f
+                            }
+
+                            alpha = 1f
+                        }
+
+                        if (
+                            app.packageName ==
+                            newTarget
+                        ) {
+                            alpha = 1f
+                        } else {
+                            alpha = 0.55f
+                        }
+                    }
+
+                list.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(54)
+                    ).apply {
+                        setMargins(
+                            0,
+                            dp(4),
+                            0,
+                            dp(4)
+                        )
+                    }
+                )
+            }
+        }
+
+        search.addTextChangedListener(
+            SimpleTextWatcher {
+                refreshList(it)
+            }
+        )
+
+        refreshList("")
+
+        dialog.show()
+
+        dialog.getButton(
+            AlertDialog.BUTTON_POSITIVE
+        )?.setTextColor(
+            Color.parseColor(BURGUNDY)
+        )
+
+        dialog.getButton(
+            AlertDialog.BUTTON_NEGATIVE
+        )?.setTextColor(
+            Color.parseColor(BURGUNDY)
+        )
+    }
+
+    // --------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------
+
+    private fun saveSettings() {
+
+        if (selectedSourcePackages.isEmpty()) {
 
             Toast.makeText(
                 this,
-                "Uygulama açılamadı.",
+                "En az bir kaynak uygulama seç.",
                 Toast.LENGTH_SHORT
             ).show()
 
             return
         }
 
-        launchIntent.addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK
-        )
+        if (targetPackage.isNullOrBlank()) {
 
-        startActivity(launchIntent)
+            Toast.makeText(
+                this,
+                "Açılacak uygulamayı seç.",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        prefs.edit()
+            .putStringSet(
+                "source_packages",
+                selectedSourcePackages
+            )
+            .putString(
+                "target_package",
+                targetPackage
+            )
+            .putString(
+                "notification_title",
+                notificationTitleInput
+                    .text
+                    .toString()
+                    .trim()
+            )
+            .putString(
+                "notification_text",
+                notificationTextInput
+                    .text
+                    .toString()
+                    .trim()
+            )
+            .apply()
+
+        Toast.makeText(
+            this,
+            "Ayarlar kaydedildi.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
-    private fun isNotificationListenerEnabled(): Boolean {
+    // --------------------------------------------------
+    // UI HELPERS
+    // --------------------------------------------------
 
-        val componentName =
+    private fun createCard(): LinearLayout {
+
+        return LinearLayout(this).apply {
+
+            orientation =
+                LinearLayout.VERTICAL
+
+            setPadding(
+                dp(18),
+                dp(18),
+                dp(18),
+                dp(18)
+            )
+
+            background =
+                GradientDrawable().apply {
+
+                    setColor(
+                        Color.parseColor(PINK)
+                    )
+
+                    setStroke(
+                        dp(2),
+                        Color.parseColor(BURGUNDY)
+                    )
+
+                    cornerRadius =
+                        dp(18).toFloat()
+                }
+        }
+    }
+
+    private fun createSectionLabel(
+        text: String
+    ): TextView {
+
+        return TextView(this).apply {
+
+            this.text = text
+
+            textSize = 13f
+
+            typeface =
+                Typeface.create(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+                )
+
+            setTextColor(
+                Color.parseColor(BURGUNDY)
+            )
+
+            letterSpacing = 0.08f
+        }
+    }
+
+    private fun createDescription(
+        text: String
+    ): TextView {
+
+        return TextView(this).apply {
+
+            this.text = text
+
+            textSize = 14f
+
+            setTextColor(
+                Color.parseColor(BURGUNDY)
+            )
+
+            setPadding(
+                0,
+                dp(7),
+                0,
+                dp(13)
+            )
+        }
+    }
+
+    private fun createSelectorSummary(): TextView {
+
+        return TextView(this).apply {
+
+            textSize = 16f
+
+            gravity =
+                Gravity.CENTER_VERTICAL
+
+            setTextColor(
+                Color.parseColor(BURGUNDARY)
+            )
+
+            background =
+                createRowBackground()
+
+            setPadding(
+                dp(14),
+                0,
+                dp(14),
+                0
+            )
+
+            isClickable = true
+        }
+    }
+
+    private fun createInput(
+        hint: String,
+        value: String?
+    ): EditText {
+
+        return EditText(this).apply {
+
+            this.hint = hint
+
+            setText(
+                value ?: ""
+            )
+
+            textSize = 15f
+
+            setSingleLine(true)
+
+            setTextColor(
+                Color.parseColor(BURGUNDARY)
+            )
+
+            setHintTextColor(
+                Color.parseColor(BURGUNDARY)
+            )
+
+            background =
+                createRowBackground()
+
+            setPadding(
+                dp(14),
+                0,
+                dp(14),
+                0
+            )
+        }
+    }
+
+    private fun createButton(
+        text: String
+    ): Button {
+
+        return Button(this).apply {
+
+            this.text = text
+
+            textSize = 14f
+
+            isAllCaps = false
+
+            typeface =
+                Typeface.create(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+                )
+
+            setTextColor(
+                Color.parseColor(CREAM)
+            )
+
+            background =
+                GradientDrawable().apply {
+
+                    setColor(
+                        Color.parseColor(BURGUNDARY)
+                    )
+
+                    cornerRadius =
+                        dp(13).toFloat()
+                }
+        }
+    }
+
+    private fun createSecondaryButton(
+        text: String
+    ): Button {
+
+        return Button(this).apply {
+
+            this.text = text
+
+            textSize = 14f
+
+            isAllCaps = false
+
+            setTextColor(
+                Color.parseColor(BURGUNDARY)
+            )
+
+            background =
+                GradientDrawable().apply {
+
+                    setColor(
+                        Color.parseColor(CREAM)
+                    )
+
+                    setStroke(
+                        dp(2),
+                        Color.parseColor(BURGUNDARY)
+                    )
+
+                    cornerRadius =
+                        dp(13).toFloat()
+                }
+        }
+    }
+
+    private fun createRowBackground():
+            GradientDrawable {
+
+        return GradientDrawable().apply {
+
+            setColor(
+                Color.parseColor(CREAM)
+            )
+
+            setStroke(
+                dp(1),
+                Color.parseColor(BURGUNDARY)
+            )
+
+            cornerRadius =
+                dp(12).toFloat()
+        }
+    }
+
+    private fun buttonParams():
+            LinearLayout.LayoutParams {
+
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(52)
+        ).apply {
+
+            topMargin = dp(10)
+        }
+    }
+
+    private fun largeButtonParams():
+            LinearLayout.LayoutParams {
+
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(56)
+        ).apply {
+
+            topMargin = dp(12)
+        }
+    }
+
+    private fun cardParams():
+            LinearLayout.LayoutParams {
+
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+
+            bottomMargin = dp(14)
+        }
+    }
+
+    private fun selectorParams():
+            LinearLayout.LayoutParams {
+
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(56)
+        )
+    }
+
+    private fun inputParams():
+            LinearLayout.LayoutParams {
+
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(56)
+        ).apply {
+
+            topMargin = dp(8)
+        }
+    }
+
+    private fun updateSelectorTexts() {
+
+        if (!::sourceSummary.isInitialized) {
+            return
+        }
+
+        val count =
+            selectedSourcePackages.size
+
+        sourceSummary.text =
+            when (count) {
+                0 ->
+                    "Uygulamaları seç"
+                1 ->
+                    "1 uygulama seçildi"
+                else ->
+                    "$count uygulama seçildi"
+            }
+
+        val target =
+            sourceApps.firstOrNull {
+                it.packageName ==
+                    targetPackage
+            }
+
+        targetSummary.text =
+            target?.label
+                ?: "Uygulama seç"
+    }
+
+    private fun updateStatus() {
+
+        if (!::statusSummary.isInitialized) {
+            return
+        }
+
+        statusSummary.text =
+            if (isNotificationListenerEnabled()) {
+                "Bildirim erişimi aktif."
+            } else {
+                "Bildirim erişimi kapalı."
+            }
+    }
+
+    private fun isNotificationListenerEnabled():
+            Boolean {
+
+        val component =
             ComponentName(
                 this,
                 NotificationListener::class.java
             )
 
-        val enabledListeners =
+        val enabled =
             Settings.Secure.getString(
                 contentResolver,
                 "enabled_notification_listeners"
             )
 
-        return enabledListeners
+        return enabled
             ?.split(":")
             ?.contains(
-                componentName.flattenToString()
+                component.flattenToString()
             ) == true
+    }
+
+    private fun dp(value: Int): Int {
+
+        return (
+            value * resources.displayMetrics.density
+            ).toInt()
+    }
+
+    private class SimpleTextWatcher(
+        private val callback:
+            (String) -> Unit
+    ) :
+        android.text.TextWatcher {
+
+        override fun beforeTextChanged(
+            s: CharSequence?,
+            start: Int,
+            count: Int,
+            after: Int
+        ) {
+        }
+
+        override fun onTextChanged(
+            s: CharSequence?,
+            start: Int,
+            before: Int,
+            count: Int
+        ) {
+
+            callback(
+                s?.toString() ?: ""
+            )
+        }
+
+        override fun afterTextChanged(
+            s: android.text.Editable?
+        ) {
+        }
     }
 }
