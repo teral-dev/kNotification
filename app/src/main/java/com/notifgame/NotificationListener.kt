@@ -167,6 +167,52 @@ class NotificationListener :
         }
     }
 
+    private fun isAppInForeground(
+    packageNameToCheck: String
+): Boolean {
+
+    val usageStatsManager =
+        getSystemService(
+            Context.USAGE_STATS_SERVICE
+        ) as android.app.usage.UsageStatsManager
+
+    val endTime =
+        System.currentTimeMillis()
+
+    /*
+     * Son 5 saniyelik kullanım olaylarına bakıyoruz.
+     */
+    val startTime =
+        endTime - 5_000L
+
+    val events =
+        usageStatsManager.queryEvents(
+            startTime,
+            endTime
+        )
+
+    val event =
+        android.app.usage.UsageEvents.Event()
+
+    var lastForegroundPackage: String? = null
+
+    while (events.hasNextEvent()) {
+
+        events.getNextEvent(event)
+
+        if (
+            event.eventType ==
+            android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED
+        ) {
+            lastForegroundPackage =
+                event.packageName
+        }
+    }
+
+    return lastForegroundPackage ==
+            packageNameToCheck
+}
+    
     override fun onNotificationPosted(
     sbn: StatusBarNotification
 ) {
