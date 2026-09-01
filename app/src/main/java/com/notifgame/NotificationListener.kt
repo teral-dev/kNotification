@@ -10,15 +10,16 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 
-class NotificationListener : NotificationListenerService() {
+class NotificationListener :
+    NotificationListenerService() {
 
     override fun onNotificationPosted(
         sbn: StatusBarNotification
     ) {
 
-        val sourcePackage = sbn.packageName
+        val sourcePackage =
+            sbn.packageName
 
-        // Kendi uygulamamızın bildirimini tekrar yakalama.
         if (sourcePackage == packageName) {
             return
         }
@@ -35,25 +36,29 @@ class NotificationListener : NotificationListenerService() {
                 emptySet()
             ) ?: emptySet()
 
-        // Kaynak uygulama seçilmemişse hiçbir şey yapma.
-        if (!selectedPackages.contains(sourcePackage)) {
+        if (
+            !selectedPackages.contains(
+                sourcePackage
+            )
+        ) {
             return
         }
 
-        // Bildirimi Android sisteminden kaldır.
         try {
             cancelNotification(sbn.key)
         } catch (_: Exception) {
         }
 
-        // Yerine kendi bildiriminimizi gönder.
         showReplacementNotification(this)
     }
 
     companion object {
 
-        private const val CHANNEL_ID = "replacement_channel"
-        private const val NOTIFICATION_ID = 98765
+        private const val CHANNEL_ID =
+            "replacement_channel"
+
+        private const val NOTIFICATION_ID =
+            98765
 
         fun showReplacementNotification(
             context: Context
@@ -68,43 +73,35 @@ class NotificationListener : NotificationListenerService() {
             val title =
                 prefs.getString(
                     "notification_title",
-                    "🎮 OYUN ZAMANI"
-                )
-                    ?: "🎮 OYUN ZAMANI"
+                    "Bildirim"
+                ) ?: "Bildirim"
 
             val text =
                 prefs.getString(
                     "notification_text",
-                    "Yeni görev hazır! Devam etmek için dokun."
-                )
-                    ?: "Yeni görev hazır! Devam etmek için dokun."
+                    "Yeni bildirim var."
+                ) ?: "Yeni bildirim var."
 
             val targetPackage =
                 prefs.getString(
                     "target_package",
                     null
                 )
+                    ?: return
 
-            if (targetPackage == null) {
-                return
-            }
-
-            val notificationManager =
+            val manager =
                 context.getSystemService(
                     NotificationManager::class.java
                 )
 
-            createChannel(notificationManager)
+            createChannel(manager)
 
             val launchIntent =
                 context.packageManager
                     .getLaunchIntentForPackage(
                         targetPackage
                     )
-
-            if (launchIntent == null) {
-                return
-            }
+                    ?: return
 
             launchIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -134,7 +131,9 @@ class NotificationListener : NotificationListenerService() {
                         NotificationCompat.BigTextStyle()
                             .bigText(text)
                     )
-                    .setContentIntent(pendingIntent)
+                    .setContentIntent(
+                        pendingIntent
+                    )
                     .setAutoCancel(true)
                     .setPriority(
                         NotificationCompat.PRIORITY_HIGH
@@ -146,33 +145,31 @@ class NotificationListener : NotificationListenerService() {
 
             try {
 
-                notificationManager.notify(
+                manager.notify(
                     NOTIFICATION_ID,
                     notification
                 )
 
             } catch (_: SecurityException) {
-                // Android 13+ bildirim izni verilmemiş olabilir.
             }
         }
 
         private fun createChannel(
-            notificationManager: NotificationManager
+            manager: NotificationManager
         ) {
 
-            val existing =
-                notificationManager.getNotificationChannel(
+            if (
+                manager.getNotificationChannel(
                     CHANNEL_ID
-                )
-
-            if (existing != null) {
+                ) != null
+            ) {
                 return
             }
 
             val channel =
                 NotificationChannel(
                     CHANNEL_ID,
-                    "NotifGame",
+                    "kNotification",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
 
@@ -182,7 +179,7 @@ class NotificationListener : NotificationListenerService() {
                     enableVibration(true)
                 }
 
-            notificationManager.createNotificationChannel(
+            manager.createNotificationChannel(
                 channel
             )
         }
