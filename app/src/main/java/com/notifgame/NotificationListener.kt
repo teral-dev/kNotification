@@ -168,52 +168,51 @@ class NotificationListener :
     }
 
     override fun onNotificationPosted(
-        sbn: StatusBarNotification
-    ) {
+    sbn: StatusBarNotification
+) {
 
-        val sourcePackage =
-            sbn.packageName
+    val sourcePackage = sbn.packageName
 
-        if (sourcePackage == packageName) {
-            return
-        }
-
-        val prefs =
-            getSharedPreferences(
-                "settings",
-                Context.MODE_PRIVATE
-            )
-
-        val selectedPackages =
-            prefs.getStringSet(
-                "source_packages",
-                emptySet()
-            ) ?: emptySet()
-
-        if (
-            !selectedPackages.contains(
-                sourcePackage
-            )
-        ) {
-            return
-        }
-
-        /*
-         * ÖNCE ORİJİNAL BİLDİRİMİ SİL.
-         *
-         * Cooldown'da olsak bile bu çalışacak.
-         */
-        try {
-            cancelNotification(sbn.key)
-        } catch (_: Exception) {
-        }
-
-        /*
-         * Sonrasında cooldown kontrol edilir.
-         *
-         * 20 saniye içindeysek sadece
-         * kaynak bildirimi silmiş oluruz.
-         */
-        showReplacementNotification(this)
+    // Kendi uygulamamızın bildirimini işleme.
+    if (sourcePackage == packageName) {
+        return
     }
+
+    val prefs = getSharedPreferences(
+        "settings",
+        Context.MODE_PRIVATE
+    )
+
+    val selectedPackages =
+        prefs.getStringSet(
+            "source_packages",
+            emptySet()
+        ) ?: emptySet()
+
+    // Seçilmemiş uygulamalara dokunma.
+    if (!selectedPackages.contains(sourcePackage)) {
+        return
+    }
+
+    // ORİJİNAL BİLDİRİMİ HER DURUMDA SİL.
+    try {
+        cancelNotification(sbn.key)
+    } catch (_: Exception) {
+    }
+
+    /*
+     * Kaynak uygulama şu anda ekrandaysa:
+     *
+     * - Orijinal bildirim zaten silindi.
+     * - Bizim bildirimi göndermiyoruz.
+     */
+    if (isAppInForeground(sourcePackage)) {
+        return
+    }
+
+    /*
+     * Uygulama ekranda değilse mevcut cooldown
+     * sistemi çalışacak.
+     */
+    showReplacementNotification(this)
 }
