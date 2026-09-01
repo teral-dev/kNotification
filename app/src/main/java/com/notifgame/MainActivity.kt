@@ -322,97 +322,99 @@ class MainActivity : Activity() {
 
     private fun loadApps() {
 
-        val pm = packageManager
+    val pm = packageManager
 
-        val apps =
-            pm.queryIntentActivities(
-                Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                },
-                PackageManager.MATCH_ALL
-            )
-                .map {
-                    AppInfo(
-                        label = it.loadLabel(pm).toString(),
-                        packageName = it.activityInfo.packageName
-                    )
-                }
-                .filter {
-                    it.packageName != packageName
-                }
-                .distinctBy {
-                    it.packageName
-                }
-                .sortedBy {
-                    it.label.lowercase()
-                }
-
-        sourceApps.clear()
-        sourceApps.addAll(apps)
-
-        sourceContainer.removeAllViews()
-        sourceChecks.clear()
-
-        val savedSources =
-            prefs.getStringSet(
-                "source_packages",
-                emptySet()
-            ) ?: emptySet()
-
-        for (app in sourceApps) {
-
-            val checkBox = CheckBox(this).apply {
-
-                text =
-                    "${app.label}\n${app.packageName}"
-
-                textSize = 15f
-
-                isChecked =
-                    savedSources.contains(
-                        app.packageName
-                    )
-
-                setPadding(0, 8, 0, 8)
-            }
-
-            sourceChecks[app.packageName] =
-                checkBox
-
-            sourceContainer.addView(checkBox)
+    val apps = pm.getInstalledApplications(
+        PackageManager.GET_META_DATA
+    )
+        .filter { appInfo ->
+            appInfo.packageName != packageName &&
+                    (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
         }
+        .mapNotNull { appInfo ->
 
-        val labels =
-            sourceApps.map {
-                it.label
-            }
+            val label =
+                appInfo.loadLabel(pm)?.toString()
 
-        targetSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                labels
-            )
-
-        val savedTarget =
-            prefs.getString(
-                "target_package",
+            if (label.isNullOrBlank()) {
                 null
-            )
-
-        if (savedTarget != null) {
-
-            val index =
-                sourceApps.indexOfFirst {
-                    it.packageName == savedTarget
-                }
-
-            if (index >= 0) {
-                targetSpinner.setSelection(index)
+            } else {
+                AppInfo(
+                    label = label,
+                    packageName = appInfo.packageName
+                )
             }
         }
+        .distinctBy {
+            it.packageName
+        }
+        .sortedBy {
+            it.label.lowercase()
+        }
+
+    sourceApps.clear()
+    sourceApps.addAll(apps)
+
+    sourceContainer.removeAllViews()
+    sourceChecks.clear()
+
+    val savedSources =
+        prefs.getStringSet(
+            "source_packages",
+            emptySet()
+        ) ?: emptySet()
+
+    for (app in sourceApps) {
+
+        val checkBox = CheckBox(this).apply {
+
+            text = app.label
+            textSize = 16f
+
+            isChecked =
+                savedSources.contains(
+                    app.packageName
+                )
+
+            setPadding(0, 12, 0, 12)
+        }
+
+        sourceChecks[app.packageName] =
+            checkBox
+
+        sourceContainer.addView(checkBox)
     }
 
+    val labels =
+        sourceApps.map {
+            it.label
+        }
+
+    targetSpinner.adapter =
+        ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            labels
+        )
+
+    val savedTarget =
+        prefs.getString(
+            "target_package",
+            null
+        )
+
+    if (savedTarget != null) {
+
+        val index =
+            sourceApps.indexOfFirst {
+                it.packageName == savedTarget
+            }
+
+        if (index >= 0) {
+            targetSpinner.setSelection(index)
+        }
+    }
+}
     private fun openApp(
         packageName: String
     ) {
