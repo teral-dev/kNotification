@@ -84,32 +84,37 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadApps() {
+    private fun loadAppsAsync() {
+
+    Thread {
 
         val pm = packageManager
 
-        sourceApps.clear()
-
-        sourceApps.addAll(
+        val apps =
             pm.getInstalledApplications(
                 PackageManager.GET_META_DATA
             )
                 .filter { app ->
                     app.packageName != packageName
                 }
-                .filter { app ->
-                    val label =
-                        app.loadLabel(pm)?.toString()
+                .mapNotNull { app ->
 
-                    !label.isNullOrBlank()
-                }
-                .map { app ->
-                    AppInfo(
-                        label =
-                            app.loadLabel(pm).toString(),
-                        packageName =
-                            app.packageName
-                    )
+                    val label =
+                        try {
+                            app.loadLabel(pm).toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+
+                    if (label.isNullOrBlank()) {
+                        null
+                    } else {
+                        AppInfo(
+                            label = label,
+                            packageName =
+                                app.packageName
+                        )
+                    }
                 }
                 .distinctBy {
                     it.packageName
@@ -117,8 +122,17 @@ class MainActivity : Activity() {
                 .sortedBy {
                     it.label.lowercase()
                 }
-        )
-    }
+
+        runOnUiThread {
+
+            sourceApps.clear()
+            sourceApps.addAll(apps)
+
+            updateSelectorTexts()
+        }
+
+    }.start()
+}
 
     private fun buildUi() {
 
