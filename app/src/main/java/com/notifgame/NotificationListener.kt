@@ -22,13 +22,11 @@ class NotificationListener :
         private const val NOTIFICATION_ID =
             98765
 
-        // Bildirimler arası minimum süre.
         private const val COOLDOWN_MS =
             20_000L
 
         @Volatile
-        private var lastNotificationTime =
-            0L
+        private var lastNotificationTime = 0L
 
         fun showReplacementNotification(
             context: Context
@@ -37,7 +35,6 @@ class NotificationListener :
             val now =
                 SystemClock.elapsedRealtime()
 
-            // Son bildirimden 20 saniye geçmediyse gönderme.
             synchronized(this) {
 
                 if (
@@ -85,11 +82,12 @@ class NotificationListener :
                 context.packageManager
                     .getLaunchIntentForPackage(
                         targetPackage
-                    ) ?: return
+                    )
+                    ?: return
 
             launchIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
             )
 
             val pendingIntent =
@@ -98,7 +96,7 @@ class NotificationListener :
                     1001,
                     launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or
-                            PendingIntent.FLAG_IMMUTABLE
+                        PendingIntent.FLAG_IMMUTABLE
                 )
 
             val notification =
@@ -176,7 +174,6 @@ class NotificationListener :
         val sourcePackage =
             sbn.packageName
 
-        // Kendi bildirimimizi tekrar işleme.
         if (sourcePackage == packageName) {
             return
         }
@@ -193,7 +190,6 @@ class NotificationListener :
                 emptySet()
             ) ?: emptySet()
 
-        // Seçilmemiş uygulamanın bildirimine dokunma.
         if (
             !selectedPackages.contains(
                 sourcePackage
@@ -202,14 +198,22 @@ class NotificationListener :
             return
         }
 
-        // Orijinal bildirimi kaldır.
+        /*
+         * ÖNCE ORİJİNAL BİLDİRİMİ SİL.
+         *
+         * Cooldown'da olsak bile bu çalışacak.
+         */
         try {
             cancelNotification(sbn.key)
         } catch (_: Exception) {
         }
 
-        // Yeni bildirim gönder.
-        // Cooldown kontrolü burada yapılacak.
+        /*
+         * Sonrasında cooldown kontrol edilir.
+         *
+         * 20 saniye içindeysek sadece
+         * kaynak bildirimi silmiş oluruz.
+         */
         showReplacementNotification(this)
     }
 }
