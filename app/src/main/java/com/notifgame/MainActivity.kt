@@ -2,17 +2,14 @@ package com.notifgame
 
 import android.Manifest
 import android.app.Activity
-import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -32,6 +29,7 @@ class MainActivity : Activity() {
 
     private lateinit var sourceContainer: LinearLayout
     private lateinit var targetSpinner: Spinner
+    private lateinit var statusText: TextView
 
     private val sourceApps = mutableListOf<AppInfo>()
     private val sourceChecks = mutableMapOf<String, CheckBox>()
@@ -45,7 +43,10 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        updateStatus()
+
+        if (::statusText.isInitialized) {
+            updateStatus()
+        }
     }
 
     private fun buildUi() {
@@ -69,9 +70,7 @@ class MainActivity : Activity() {
         root.addView(title)
 
         val description = TextView(this).apply {
-            text =
-                "Seçtiğin uygulamaların bildirimlerini yakalar, " +
-                "bildirimi kaldırır ve yerine kendi oyun bildiriminizi gösterir."
+            text = "Seçtiğin uygulamaların bildirimlerini yakalar, kaldırır ve yerine kendi bildiriminizi gösterir."
             textSize = 16f
             setPadding(0, 0, 0, 24)
         }
@@ -80,12 +79,13 @@ class MainActivity : Activity() {
 
         val permissionButton = Button(this).apply {
             text = "Bildirim Erişimini Aç"
+
             setOnClickListener {
                 try {
                     startActivity(
                         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                     )
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     Toast.makeText(
                         this@MainActivity,
                         "Bildirim ayarları açılamadı.",
@@ -97,33 +97,28 @@ class MainActivity : Activity() {
 
         root.addView(permissionButton)
 
-        val notificationPermissionButton =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Button(this).apply {
-                    text = "Bildirim Gönderme İznini Ver"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
-                    setOnClickListener {
-                        requestPermissions(
-                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                            100
-                        )
-                    }
+            val notificationPermissionButton = Button(this).apply {
+                text = "Bildirim Gönderme İznini Ver"
+
+                setOnClickListener {
+                    requestPermissions(
+                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                        100
+                    )
                 }
-            } else {
-                null
             }
 
-        notificationPermissionButton?.let {
-            root.addView(it)
+            root.addView(notificationPermissionButton)
         }
 
-        val status = TextView(this).apply {
+        statusText = TextView(this).apply {
             textSize = 15f
             setPadding(0, 12, 0, 24)
-            tag = "status"
         }
 
-        root.addView(status)
+        root.addView(statusText)
 
         val sourceTitle = TextView(this).apply {
             text = "Kaynak uygulamalar"
@@ -171,6 +166,7 @@ class MainActivity : Activity() {
         val notificationTitle = EditText(this).apply {
             hint = "Bildirim başlığı"
             setSingleLine(true)
+
             setText(
                 prefs.getString(
                     "notification_title",
@@ -184,6 +180,7 @@ class MainActivity : Activity() {
         val notificationText = EditText(this).apply {
             hint = "Bildirim metni"
             setSingleLine(false)
+
             setText(
                 prefs.getString(
                     "notification_text",
@@ -199,14 +196,17 @@ class MainActivity : Activity() {
 
             setOnClickListener {
 
-                val selectedPackages = sourceChecks
-                    .filterValues { it.isChecked }
-                    .keys
-                    .toSet()
+                val selectedPackages =
+                    sourceChecks
+                        .filterValues { it.isChecked }
+                        .keys
+                        .toSet()
 
-                val targetPosition = targetSpinner.selectedItemPosition
+                val targetPosition =
+                    targetSpinner.selectedItemPosition
 
                 if (selectedPackages.isEmpty()) {
+
                     Toast.makeText(
                         this@MainActivity,
                         "En az bir kaynak uygulama seç.",
@@ -216,9 +216,11 @@ class MainActivity : Activity() {
                     return@setOnClickListener
                 }
 
-                if (targetPosition < 0 ||
+                if (
+                    targetPosition < 0 ||
                     targetPosition >= sourceApps.size
                 ) {
+
                     Toast.makeText(
                         this@MainActivity,
                         "Hedef uygulama seç.",
@@ -264,7 +266,9 @@ class MainActivity : Activity() {
             text = "TEST BİLDİRİMİ"
 
             setOnClickListener {
-                NotificationListener.showReplacementNotification(this@MainActivity)
+                NotificationListener.showReplacementNotification(
+                    this@MainActivity
+                )
             }
         }
 
@@ -274,12 +278,15 @@ class MainActivity : Activity() {
             text = "SEÇİLİ UYGULAMAYI AÇ"
 
             setOnClickListener {
-                val packageName = prefs.getString(
-                    "target_package",
-                    null
-                )
+
+                val packageName =
+                    prefs.getString(
+                        "target_package",
+                        null
+                    )
 
                 if (packageName == null) {
+
                     Toast.makeText(
                         this@MainActivity,
                         "Önce hedef uygulama seç.",
@@ -302,13 +309,10 @@ class MainActivity : Activity() {
 
     private fun updateStatus() {
 
-        val statusView =
-            findViewByTag<View>("status") as? TextView
-                ?: return
+        val enabled =
+            isNotificationListenerEnabled()
 
-        val enabled = isNotificationListenerEnabled()
-
-        statusView.text =
+        statusText.text =
             if (enabled) {
                 "🟢 Bildirim erişimi: AKTİF"
             } else {
@@ -320,27 +324,28 @@ class MainActivity : Activity() {
 
         val pm = packageManager
 
-        val apps = pm.queryIntentActivities(
-            Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_LAUNCHER)
-            },
-            PackageManager.MATCH_ALL
-        )
-            .map {
-                AppInfo(
-                    label = it.loadLabel(pm).toString(),
-                    packageName = it.activityInfo.packageName
-                )
-            }
-            .filter {
-                it.packageName != packageName
-            }
-            .distinctBy {
-                it.packageName
-            }
-            .sortedBy {
-                it.label.lowercase()
-            }
+        val apps =
+            pm.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                },
+                PackageManager.MATCH_ALL
+            )
+                .map {
+                    AppInfo(
+                        label = it.loadLabel(pm).toString(),
+                        packageName = it.activityInfo.packageName
+                    )
+                }
+                .filter {
+                    it.packageName != packageName
+                }
+                .distinctBy {
+                    it.packageName
+                }
+                .sortedBy {
+                    it.label.lowercase()
+                }
 
         sourceApps.clear()
         sourceApps.addAll(apps)
@@ -352,30 +357,35 @@ class MainActivity : Activity() {
             prefs.getStringSet(
                 "source_packages",
                 emptySet()
-            )
+            ) ?: emptySet()
 
         for (app in sourceApps) {
 
             val checkBox = CheckBox(this).apply {
 
-                text = "${app.label}\n${app.packageName}"
+                text =
+                    "${app.label}\n${app.packageName}"
 
                 textSize = 15f
 
                 isChecked =
-                    savedSources?.contains(app.packageName) == true
+                    savedSources.contains(
+                        app.packageName
+                    )
 
                 setPadding(0, 8, 0, 8)
             }
 
-            sourceChecks[app.packageName] = checkBox
+            sourceChecks[app.packageName] =
+                checkBox
 
             sourceContainer.addView(checkBox)
         }
 
-        val labels = sourceApps.map {
-            it.label
-        }
+        val labels =
+            sourceApps.map {
+                it.label
+            }
 
         targetSpinner.adapter =
             ArrayAdapter(
@@ -403,12 +413,18 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun openApp(packageName: String) {
+    private fun openApp(
+        packageName: String
+    ) {
 
         val launchIntent =
-            packageManager.getLaunchIntentForPackage(packageName)
+            packageManager
+                .getLaunchIntentForPackage(
+                    packageName
+                )
 
         if (launchIntent == null) {
+
             Toast.makeText(
                 this,
                 "Uygulama açılamadı.",
@@ -427,38 +443,22 @@ class MainActivity : Activity() {
 
     private fun isNotificationListenerEnabled(): Boolean {
 
-        val cn = ComponentName(
-            this,
-            NotificationListener::class.java
-        )
+        val componentName =
+            ComponentName(
+                this,
+                NotificationListener::class.java
+            )
 
-        val enabledPackages =
+        val enabledListeners =
             Settings.Secure.getString(
                 contentResolver,
                 "enabled_notification_listeners"
             )
 
-        return enabledPackages
-            ?.contains(cn.flattenToString()) == true
-    }
-
-    private fun View.findViewByTag(tagName: String): View? {
-
-        if (tag == tagName) {
-            return this
-        }
-
-        if (this is android.view.ViewGroup) {
-            for (i in 0 until childCount) {
-                val result =
-                    getChildAt(i).findViewByTag(tagName)
-
-                if (result != null) {
-                    return result
-                }
-            }
-        }
-
-        return null
+        return enabledListeners
+            ?.split(":")
+            ?.contains(
+                componentName.flattenToString()
+            ) == true
     }
 }
