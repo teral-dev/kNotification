@@ -51,27 +51,30 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    super.onCreate(savedInstanceState)
 
-        selectedSourcePackages.clear()
+    selectedSourcePackages.clear()
 
-        prefs.getStringSet(
-            "source_packages",
-            emptySet()
-        )?.let {
-            selectedSourcePackages.addAll(it)
-        }
-
-        targetPackage =
-            prefs.getString(
-                "target_package",
-                null
-            )
-
-        loadApps()
-        buildUi()
-        updateStatus()
+    prefs.getStringSet(
+        "source_packages",
+        emptySet()
+    )?.let {
+        selectedSourcePackages.addAll(it)
     }
+
+    targetPackage =
+        prefs.getString(
+            "target_package",
+            null
+        )
+
+    // Önce arayüzü anında göster.
+    buildUi()
+    updateStatus()
+
+    // Uygulamaları arka planda yükle.
+    loadAppsAsync()
+}
 
     override fun onResume() {
         super.onResume()
