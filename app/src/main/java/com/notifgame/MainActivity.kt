@@ -6,7 +6,6 @@ import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -14,26 +13,31 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
-import android.view.Window
+import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.Button
 import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 
 class MainActivity : Activity() {
 
     private val prefs by lazy {
-        getSharedPreferences("settings", Context.MODE_PRIVATE)
+        getSharedPreferences(
+            "settings",
+            Context.MODE_PRIVATE
+        )
     }
 
-    private val sourceApps = mutableListOf<AppInfo>()
-    private val selectedSourcePackages = mutableSetOf<String>()
+    private val sourceApps =
+        mutableListOf<AppInfo>()
+
+    private val selectedSourcePackages =
+        mutableSetOf<String>()
 
     private var targetPackage: String? = null
 
@@ -45,36 +49,37 @@ class MainActivity : Activity() {
     private lateinit var notificationTextInput: EditText
 
     companion object {
+
         private const val PINK = "#E0777D"
         private const val CREAM = "#FDD692"
         private const val BURGUNDY = "#8E3B46"
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
+        super.onCreate(savedInstanceState)
 
-    selectedSourcePackages.clear()
+        selectedSourcePackages.clear()
 
-    prefs.getStringSet(
-        "source_packages",
-        emptySet()
-    )?.let {
-        selectedSourcePackages.addAll(it)
+        prefs.getStringSet(
+            "source_packages",
+            emptySet()
+        )?.let {
+            selectedSourcePackages.addAll(it)
+        }
+
+        targetPackage =
+            prefs.getString(
+                "target_package",
+                null
+            )
+
+        buildUi()
+        updateStatus()
+
+        loadAppsAsync()
     }
-
-    targetPackage =
-        prefs.getString(
-            "target_package",
-            null
-        )
-
-    // Önce arayüzü anında göster.
-    buildUi()
-    updateStatus()
-
-    // Uygulamaları arka planda yükle.
-    loadAppsAsync()
-}
 
     override fun onResume() {
         super.onResume()
@@ -84,65 +89,81 @@ class MainActivity : Activity() {
         }
     }
 
+    // --------------------------------------------------
+    // APP LOADING
+    // --------------------------------------------------
+
     private fun loadAppsAsync() {
 
-    Thread {
+        Thread {
 
-        val pm = packageManager
+            val pm = packageManager
 
-        val apps =
-            pm.getInstalledApplications(
-                PackageManager.GET_META_DATA
-            )
-                .filter { app ->
-                    app.packageName != packageName
-                }
-                .mapNotNull { app ->
-
-                    val label =
-                        try {
-                            app.loadLabel(pm).toString()
-                        } catch (_: Exception) {
-                            null
-                        }
-
-                    if (label.isNullOrBlank()) {
-                        null
-                    } else {
-                        AppInfo(
-                            label = label,
-                            packageName =
-                                app.packageName
-                        )
+            val apps =
+                pm.getInstalledApplications(
+                    PackageManager.GET_META_DATA
+                )
+                    .filter { app ->
+                        app.packageName != packageName
                     }
-                }
-                .distinctBy {
-                    it.packageName
-                }
-                .sortedBy {
-                    it.label.lowercase()
-                }
+                    .mapNotNull { app ->
 
-        runOnUiThread {
+                        val label =
+                            try {
+                                app.loadLabel(
+                                    pm
+                                ).toString()
+                            } catch (_: Exception) {
+                                null
+                            }
 
-            sourceApps.clear()
-            sourceApps.addAll(apps)
+                        if (
+                            label.isNullOrBlank()
+                        ) {
+                            null
+                        } else {
+                            AppInfo(
+                                label = label,
+                                packageName =
+                                    app.packageName
+                            )
+                        }
+                    }
+                    .distinctBy {
+                        it.packageName
+                    }
+                    .sortedBy {
+                        it.label.lowercase()
+                    }
 
-            updateSelectorTexts()
-        }
+            runOnUiThread {
 
-    }.start()
-}
+                sourceApps.clear()
+                sourceApps.addAll(apps)
+
+                updateSelectorTexts()
+            }
+
+        }.start()
+    }
+
+    // --------------------------------------------------
+    // UI
+    // --------------------------------------------------
 
     private fun buildUi() {
 
         val scrollView =
             ScrollView(this).apply {
-                setBackgroundColor(Color.parseColor(CREAM))
+
+                setBackgroundColor(
+                    Color.parseColor(CREAM)
+                )
             }
 
         val root =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
@@ -207,15 +228,18 @@ class MainActivity : Activity() {
 
         root.addView(subtitle)
 
-        // STATUS
+        // --------------------------------------------------
+        // SERVICE STATUS
+        // --------------------------------------------------
 
         val statusCard =
             createCard()
 
-        val statusLabel =
-            createSectionLabel("SERVİS DURUMU")
-
-        statusCard.addView(statusLabel)
+        statusCard.addView(
+            createSectionLabel(
+                "SERVİS DURUMU"
+            )
+        )
 
         statusSummary =
             TextView(this).apply {
@@ -224,9 +248,9 @@ class MainActivity : Activity() {
 
                 setPadding(
                     0,
-                    dp(6),
+                    dp(7),
                     0,
-                    0
+                    dp(8)
                 )
 
                 setTextColor(
@@ -236,12 +260,12 @@ class MainActivity : Activity() {
 
         statusCard.addView(statusSummary)
 
-        val permissionButton =
+        val notificationAccessButton =
             createButton(
                 "Bildirim erişimini aç"
             )
 
-        permissionButton.setOnClickListener {
+        notificationAccessButton.setOnClickListener {
 
             try {
 
@@ -262,41 +286,69 @@ class MainActivity : Activity() {
         }
 
         statusCard.addView(
-            permissionButton,
+            notificationAccessButton,
             buttonParams()
         )
 
-        if (Build.VERSION.SDK_INT >=
+        if (
+            Build.VERSION.SDK_INT >=
             Build.VERSION_CODES.TIRAMISU
         ) {
 
-            val postPermissionButton =
+            val notificationPermissionButton =
                 createSecondaryButton(
                     "Bildirim iznini aç"
                 )
 
-            postPermissionButton.setOnClickListener {
+            notificationPermissionButton
+                .setOnClickListener {
 
-                requestPermissions(
-                    arrayOf(
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ),
-                    100
-                )
-            }
+                    requestPermissions(
+                        arrayOf(
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ),
+                        100
+                    )
+                }
 
             statusCard.addView(
-                postPermissionButton,
+                notificationPermissionButton,
                 buttonParams()
             )
         }
+
+        // Kullanım erişimi
+        val usageAccessButton =
+            createSecondaryButton(
+                "Uygulama kullanım erişimini aç"
+            )
+
+        usageAccessButton.setOnClickListener {
+            openUsageAccessSettings()
+        }
+
+        statusCard.addView(
+            usageAccessButton,
+            buttonParams()
+        )
+
+        val usageDescription =
+            createDescription(
+                "Önde açık olan kaynak uygulamayı algılamak için gereklidir."
+            )
+
+        statusCard.addView(
+            usageDescription
+        )
 
         root.addView(
             statusCard,
             cardParams()
         )
 
-        // SOURCE APPLICATIONS
+        // --------------------------------------------------
+        // SOURCE APPS
+        // --------------------------------------------------
 
         val sourceCard =
             createCard()
@@ -307,31 +359,32 @@ class MainActivity : Activity() {
             )
         )
 
-        val sourceDescription =
+        sourceCard.addView(
             createDescription(
                 "Bildirimlerini değiştirmek istediğin uygulamaları seç."
             )
-
-        sourceCard.addView(sourceDescription)
+        )
 
         sourceSummary =
             createSelectorSummary()
+
+        sourceSummary.setOnClickListener {
+            showSourcePicker()
+        }
 
         sourceCard.addView(
             sourceSummary,
             selectorParams()
         )
 
-        sourceSummary.setOnClickListener {
-            showSourcePicker()
-        }
-
         root.addView(
             sourceCard,
             cardParams()
         )
 
-        // TARGET APPLICATION
+        // --------------------------------------------------
+        // TARGET APP
+        // --------------------------------------------------
 
         val targetCard =
             createCard()
@@ -351,21 +404,23 @@ class MainActivity : Activity() {
         targetSummary =
             createSelectorSummary()
 
+        targetSummary.setOnClickListener {
+            showTargetPicker()
+        }
+
         targetCard.addView(
             targetSummary,
             selectorParams()
         )
-
-        targetSummary.setOnClickListener {
-            showTargetPicker()
-        }
 
         root.addView(
             targetCard,
             cardParams()
         )
 
+        // --------------------------------------------------
         // NOTIFICATION
+        // --------------------------------------------------
 
         val notificationCard =
             createCard()
@@ -378,7 +433,7 @@ class MainActivity : Activity() {
 
         notificationCard.addView(
             createDescription(
-                "Kaynak uygulamanın yerine gösterilecek bildirimin metnini yaz."
+                "Kaynak uygulamanın yerine gösterilecek bildirimin içeriğini belirle."
             )
         )
 
@@ -417,7 +472,9 @@ class MainActivity : Activity() {
             cardParams()
         )
 
+        // --------------------------------------------------
         // SAVE
+        // --------------------------------------------------
 
         val saveButton =
             createButton(
@@ -433,7 +490,9 @@ class MainActivity : Activity() {
             largeButtonParams()
         )
 
+        // --------------------------------------------------
         // TEST
+        // --------------------------------------------------
 
         val testButton =
             createSecondaryButton(
@@ -459,6 +518,30 @@ class MainActivity : Activity() {
     }
 
     // --------------------------------------------------
+    // USAGE ACCESS
+    // --------------------------------------------------
+
+    private fun openUsageAccessSettings() {
+
+        try {
+
+            startActivity(
+                Intent(
+                    Settings.ACTION_USAGE_ACCESS_SETTINGS
+                )
+            )
+
+        } catch (_: Exception) {
+
+            Toast.makeText(
+                this,
+                "Kullanım erişimi ayarları açılamadı.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    // --------------------------------------------------
     // SOURCE PICKER
     // --------------------------------------------------
 
@@ -466,14 +549,15 @@ class MainActivity : Activity() {
 
         val container =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
                 setPadding(
                     dp(18),
-                    dp(10),
+                    dp(8),
                     dp(18),
-                    dp(10)
+                    dp(8)
                 )
             }
 
@@ -496,6 +580,7 @@ class MainActivity : Activity() {
 
         val list =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -519,12 +604,16 @@ class MainActivity : Activity() {
                 .setPositiveButton(
                     "Tamam"
                 ) { d, _ ->
+
                     updateSelectorTexts()
+
                     d.dismiss()
                 }
                 .create()
 
-        fun refreshList(query: String) {
+        fun refreshList(
+            query: String
+        ) {
 
             list.removeAllViews()
 
@@ -538,23 +627,6 @@ class MainActivity : Activity() {
 
             for (app in filtered) {
 
-                val row =
-                    LinearLayout(this).apply {
-
-                        orientation =
-                            LinearLayout.HORIZONTAL
-
-                        gravity =
-                            Gravity.CENTER_VERTICAL
-
-                        setPadding(
-                            0,
-                            dp(5),
-                            0,
-                            dp(5)
-                        )
-                    }
-
                 val checkBox =
                     CheckBox(this).apply {
 
@@ -563,8 +635,17 @@ class MainActivity : Activity() {
                         textSize = 16f
 
                         setTextColor(
-                            Color.parseColor(BURGUNDY)
+                            Color.parseColor(
+                                BURGUNDY
+                            )
                         )
+
+                        buttonTintList =
+                            ColorStateList.valueOf(
+                                Color.parseColor(
+                                    BURGUNDY
+                                )
+                            )
 
                         isChecked =
                             selectedSourcePackages
@@ -572,19 +653,26 @@ class MainActivity : Activity() {
                                     app.packageName
                                 )
 
-                        buttonTintList =
-                            android.content.res.ColorStateList.valueOf(
-                                Color.parseColor(BURGUNDY)
-                            )
+                        setPadding(
+                            0,
+                            dp(7),
+                            0,
+                            dp(7)
+                        )
 
-                        setOnCheckedChangeListener { _, checked ->
+                        setOnCheckedChangeListener {
+                                _,
+                                checked ->
 
                             if (checked) {
+
                                 selectedSourcePackages
                                     .add(
                                         app.packageName
                                     )
+
                             } else {
+
                                 selectedSourcePackages
                                     .remove(
                                         app.packageName
@@ -593,15 +681,13 @@ class MainActivity : Activity() {
                         }
                     }
 
-                row.addView(
+                list.addView(
                     checkBox,
                     LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(54)
+                        dp(52)
                     )
                 )
-
-                list.addView(row)
             }
         }
 
@@ -630,14 +716,15 @@ class MainActivity : Activity() {
 
         val container =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
                 setPadding(
                     dp(18),
-                    dp(10),
+                    dp(8),
                     dp(18),
-                    dp(10)
+                    dp(8)
                 )
             }
 
@@ -660,6 +747,7 @@ class MainActivity : Activity() {
 
         val list =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -700,7 +788,9 @@ class MainActivity : Activity() {
                 )
                 .create()
 
-        fun refreshList(query: String) {
+        fun refreshList(
+            query: String
+        ) {
 
             list.removeAllViews()
 
@@ -721,12 +811,14 @@ class MainActivity : Activity() {
 
                         textSize = 16f
 
-                        setTextColor(
-                            Color.parseColor(BURGUNDY)
-                        )
-
                         gravity =
                             Gravity.CENTER_VERTICAL
+
+                        setTextColor(
+                            Color.parseColor(
+                                BURGUNDY
+                            )
+                        )
 
                         setPadding(
                             dp(14),
@@ -738,32 +830,32 @@ class MainActivity : Activity() {
                         background =
                             createRowBackground()
 
+                        alpha =
+                            if (
+                                app.packageName ==
+                                newTarget
+                            ) {
+                                1f
+                            } else {
+                                0.55f
+                            }
+
                         setOnClickListener {
 
                             newTarget =
                                 app.packageName
 
-                            for (i in
+                            for (
+                                i in
                                 0 until list.childCount
                             ) {
 
-                                val child =
-                                    list.getChildAt(i)
-
-                                child.alpha =
-                                    0.55f
+                                list.getChildAt(
+                                    i
+                                ).alpha = 0.55f
                             }
 
                             alpha = 1f
-                        }
-
-                        if (
-                            app.packageName ==
-                            newTarget
-                        ) {
-                            alpha = 1f
-                        } else {
-                            alpha = 0.55f
                         }
                     }
 
@@ -773,6 +865,7 @@ class MainActivity : Activity() {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         dp(54)
                     ).apply {
+
                         setMargins(
                             0,
                             dp(4),
@@ -808,12 +901,14 @@ class MainActivity : Activity() {
     }
 
     // --------------------------------------------------
-    // SETTINGS
+    // SAVE
     // --------------------------------------------------
 
     private fun saveSettings() {
 
-        if (selectedSourcePackages.isEmpty()) {
+        if (
+            selectedSourcePackages.isEmpty()
+        ) {
 
             Toast.makeText(
                 this,
@@ -824,7 +919,9 @@ class MainActivity : Activity() {
             return
         }
 
-        if (targetPackage.isNullOrBlank()) {
+        if (
+            targetPackage.isNullOrBlank()
+        ) {
 
             Toast.makeText(
                 this,
@@ -871,7 +968,8 @@ class MainActivity : Activity() {
     // UI HELPERS
     // --------------------------------------------------
 
-    private fun createCard(): LinearLayout {
+    private fun createCard():
+            LinearLayout {
 
         return LinearLayout(this).apply {
 
@@ -950,7 +1048,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun createSelectorSummary(): TextView {
+    private fun createSelectorSummary():
+            TextView {
 
         return TextView(this).apply {
 
@@ -1159,6 +1258,10 @@ class MainActivity : Activity() {
         }
     }
 
+    // --------------------------------------------------
+    // STATE
+    // --------------------------------------------------
+
     private fun updateSelectorTexts() {
 
         if (!::sourceSummary.isInitialized) {
@@ -1170,10 +1273,13 @@ class MainActivity : Activity() {
 
         sourceSummary.text =
             when (count) {
+
                 0 ->
                     "Uygulamaları seç"
+
                 1 ->
                     "1 uygulama seçildi"
+
                 else ->
                     "$count uygulama seçildi"
             }
@@ -1196,7 +1302,9 @@ class MainActivity : Activity() {
         }
 
         statusSummary.text =
-            if (isNotificationListenerEnabled()) {
+            if (
+                isNotificationListenerEnabled()
+            ) {
                 "Bildirim erişimi aktif."
             } else {
                 "Bildirim erişimi kapalı."
@@ -1225,10 +1333,17 @@ class MainActivity : Activity() {
             ) == true
     }
 
-    private fun dp(value: Int): Int {
+    // --------------------------------------------------
+    // UTIL
+    // --------------------------------------------------
+
+    private fun dp(
+        value: Int
+    ): Int {
 
         return (
-            value * resources.displayMetrics.density
+            value *
+                resources.displayMetrics.density
             ).toInt()
     }
 
