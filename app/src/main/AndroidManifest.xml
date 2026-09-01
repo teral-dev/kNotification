@@ -2,17 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <queries>
-    <intent>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent>
-</queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
+        android:icon="@drawable/k"
+        android:roundIcon="@drawable/k"
         android:supportsRtl="true"
-        android:theme="@style/Theme.NotifGame">
+        android:theme="@style/Theme.kNotification">
 
         <activity
             android:name=".MainActivity"
